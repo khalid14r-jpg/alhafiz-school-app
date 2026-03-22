@@ -1,0 +1,187 @@
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap');
+@import "tailwindcss";
+
+/* Custom Scrollbar Styles */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 10px;
+  transition: background 0.2s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+@theme {
+  --font-sans: "Cairo", ui-sans-serif, system-ui, sans-serif;
+}
+
+:root {
+  --bg-main: #f8fafc;
+  --bg-card: #ffffff;
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+  --border-color: #f1f5f9;
+}
+
+body {
+  direction: rtl;
+  @apply bg-slate-50 text-slate-900;
+}
+
+/* Rich Text Styles */
+.ql-snow .ql-toolbar button.ql-audio {
+  width: 28px;
+  height: 24px;
+  padding: 3px 5px;
+}
+
+.ql-snow .ql-toolbar button.ql-audio svg {
+  display: none;
+}
+
+.ql-snow .ql-toolbar button.ql-audio {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%23444' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 18V5l12-2v13'%3E%3C/path%3E%3Ccircle cx='6' cy='18' r='3'%3E%3C/circle%3E%3Ccircle cx='18' cy='16' r='3'%3E%3C/circle%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+.ql-snow .ql-toolbar button.ql-audio:hover {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%237c3aed' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 18V5l12-2v13'%3E%3C/path%3E%3Ccircle cx='6' cy='18' r='3'%3E%3C/circle%3E%3Ccircle cx='18' cy='16' r='3'%3E%3C/circle%3E%3C/svg%3E");
+}
+
+.rich-text-content a {
+  @apply text-violet-600 underline hover:text-violet-800 transition-colors;
+}
+
+.rich-text-content ul {
+  @apply list-disc list-inside space-y-1 my-2;
+}
+
+.rich-text-content ol {
+  @apply list-decimal list-inside space-y-1 my-2;
+}
+
+.rich-text-content p {
+  @apply mb-2;
+}
+
+/* Quill Editor Overrides */
+.ql-editor {
+  @apply text-lg md:text-xl text-slate-600 font-medium min-h-[150px];
+  font-family: inherit !important;
+}
+
+[dir="rtl"] .ql-editor,
+[dir="rtl"] .rich-text-content {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="ltr"] .ql-editor,
+[dir="ltr"] .rich-text-content {
+  direction: ltr;
+  text-align: left;
+}
+
+.ql-editor.ql-blank::before {
+  left: 15px !important;
+  right: 15px !important;
+}
+
+[dir="rtl"] .ql-editor.ql-blank::before {
+  text-align: right !important;
+  left: auto !important;
+}
+
+[dir="ltr"] .ql-editor.ql-blank::before {
+  text-align: left !important;
+  right: auto !important;
+}
+
+/* Direction & Alignment for both Editor and Viewer */
+.ql-editor [class*="ql-direction-rtl"],
+.ql-editor.ql-direction-rtl,
+.rich-text-content [class*="ql-direction-rtl"],
+.rich-text-content.ql-direction-rtl {
+  direction: rtl !important;
+  text-align: right !important;
+}
+
+.ql-editor [class*="ql-direction-ltr"],
+.ql-editor.ql-direction-ltr,
+.rich-text-content [class*="ql-direction-ltr"],
+.rich-text-content.ql-direction-ltr {
+  direction: ltr !important;
+  text-align: left !important;
+}
+
+.ql-editor .ql-align-center,
+.rich-text-content .ql-align-center {
+  text-align: center !important;
+}
+
+.ql-editor .ql-align-right,
+.rich-text-content .ql-align-right {
+  text-align: right !important;
+  direction: rtl !important;
+}
+
+.ql-editor .ql-align-left,
+.rich-text-content .ql-align-left {
+  text-align: left !important;
+  direction: ltr !important;
+}
+
+.ql-editor .ql-align-justify,
+.rich-text-content .ql-align-justify {
+  text-align: justify !important;
+}
+
+/* Rendered Content Styles */
+.rich-text-content {
+  /* Alignment is handled by parent dir attribute */
+}
+
+[dir="rtl"] .rich-text-content {
+  text-align: right;
+}
+
+[dir="ltr"] .rich-text-content {
+  text-align: left;
+}
+
+.rich-text-content {
+  @apply text-justify;
+  text-justify: inter-word;
+}
+
+.ql-toolbar.ql-snow {
+  @apply border-slate-200 bg-slate-50 rounded-t-2xl flex flex-wrap gap-1;
+}
+
+.ql-container.ql-snow {
+  @apply border-slate-200 rounded-b-2xl;
+}
+
+.ql-snow .ql-picker {
+  @apply text-slate-600;
+}
+
+.ql-snow .ql-stroke {
+  @apply stroke-slate-400;
+}
+
+.ql-snow .ql-fill {
+  @apply fill-slate-400;
+}
