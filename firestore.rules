@@ -1,0 +1,192 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Fields:
+    //   - uid: string (required)
+    //   - first_name: string (required)
+    //   - father_name: string (required)
+    //   - role: string (required, enum: ['student', 'teacher', 'admin'])
+    //   - username: string
+    //   - grade: string
+    //
+    // Collection: paths
+    // Fields:
+    //   - title: string (required)
+    //   - description: string
+    //   - icon: string
+    //   - category: string
+    //   - image_url: string
+    //   - order_index: number
+    //
+    // Collection: paths/{pathId}/lessons
+    // Fields:
+    //   - title: string (required)
+    //   - image_url: string
+    //   - source: string
+    //   - duration: string
+    //   - order_index: number
+    //
+    // Collection: paths/{pathId}/lessons/{lessonId}/pages
+    // Fields:
+    //   - type: string (required, enum: ['explanation', 'question', 'media', 'matching', 'blanks', 'iframe'])
+    //   - title: string
+    //   - content: string
+    //   - order_index: number
+    //
+    // Collection: users/{userId}/progress
+    // Fields:
+    //   - lesson_id: string (required)
+    //   - completed: bool (required)
+    //   - correct_answers: number
+    //   - total_questions: number
+    //   - updated_at: timestamp
+    //
+    // Collection: notifications
+    // Fields:
+    //   - title: string (required)
+    //   - message: string (required)
+    //   - type: string (required, enum: ['general', 'personal', 'category'])
+    //   - target_user_id: string
+    //   - target_category: string
+    //   - path_id: string
+    //   - lesson_id: string
+    //   - sender_id: string (required)
+    //   - sender_name: string
+    //   - created_at: timestamp
+    //   - read_by: list
+    //   - read: bool
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (
+          request.auth.token.email == "khalid14r@gmail.com" ||
+          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+           (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'teacher'))
+        );
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'role', 'first_name', 'father_name']) &&
+             data.uid is string &&
+             data.role in ['student', 'teacher', 'admin'] &&
+             data.first_name is string && data.first_name.size() > 0 && data.first_name.size() < 100 &&
+             data.father_name is string && data.father_name.size() > 0 && data.father_name.size() < 100;
+    }
+
+    function isValidPath(data) {
+      return data.keys().hasAll(['title']) &&
+             data.title is string && data.title.size() > 0 && data.title.size() < 200;
+    }
+
+    function isValidLesson(data) {
+      return data.keys().hasAll(['title']) &&
+             data.title is string && data.title.size() > 0 && data.title.size() < 200;
+    }
+
+    function isValidPage(data) {
+      return data.keys().hasAll(['type', 'order_index']) &&
+             data.type in ['explanation', 'question', 'media', 'matching', 'blanks', 'iframe'] &&
+             data.order_index is number;
+    }
+
+    function isValidProgress(data) {
+      return data.keys().hasAll(['lesson_id', 'completed']) &&
+             data.lesson_id is string &&
+             data.completed is bool;
+    }
+
+    function isValidNotification(data) {
+      return data.keys().hasAll(['title', 'message', 'type', 'sender_id']) &&
+             data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
+             data.message is string && data.message.size() > 0 && data.message.size() < 1000 &&
+             data.type in ['general', 'personal', 'category'] &&
+             data.sender_id is string;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /_connection_test_/{docId} {
+      allow read: if true;
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated() && (
+        resource.data.type == 'general' ||
+        (resource.data.type == 'personal' && resource.data.target_user_id == request.auth.uid) ||
+        (resource.data.type == 'category' /* category filtering is usually done client-side or via query, but we allow reading it */) ||
+        isAdmin()
+      );
+      allow create: if isAdmin() && isValidNotification(request.resource.data);
+      allow update: if isAuthenticated() && (
+        (isAdmin() && isValidNotification(request.resource.data)) ||
+        (resource.data.type == 'personal' && resource.data.target_user_id == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read'])) ||
+        (resource.data.type in ['general', 'category'] && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read_by']))
+      );
+      allow delete: if isAdmin();
+    }
+
+    match /users/{userId} {
+      allow get: if isAuthenticated() && (isOwner(userId) || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data);
+      allow update: if isAuthenticated() && (isOwner(userId) || isAdmin()) && isValidUser(request.resource.data);
+      
+      match /progress/{lessonId} {
+        allow read: if isAuthenticated() && (isOwner(userId) || isAdmin());
+        allow write: if isAuthenticated() && isOwner(userId) && isValidProgress(request.resource.data);
+      }
+    }
+
+    // Support collectionGroup queries
+    match /{path=**}/lessons/{lessonId} {
+      allow read: if isAuthenticated();
+    }
+    match /{path=**}/pages/{pageId} {
+      allow read: if isAuthenticated();
+    }
+    match /{path=**}/progress/{lessonId} {
+      allow read: if isAdmin();
+    }
+
+    match /paths/{pathId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() && isValidPath(request.resource.data);
+
+      match /lessons/{lessonId} {
+        allow read: if isAuthenticated();
+        allow write: if isAdmin() && isValidLesson(request.resource.data);
+
+        match /pages/{pageId} {
+          allow read: if isAuthenticated();
+          allow write: if isAdmin() && isValidPage(request.resource.data);
+        }
+      }
+    }
+
+    // Default deny
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}
