@@ -94,13 +94,8 @@ const RegisterPage = () => {
         className="bg-white p-8 rounded-3xl shadow-xl border border-slate-100 w-full max-w-md"
       >
         <div className="flex flex-col items-center mb-8">
-          <div className="p-2 rounded-2xl mb-4">
-            <img 
-              src="https://img.icons8.com/3d-fluency/100/books.png" 
-              alt="Logo" 
-              className="w-16 h-16 object-contain"
-              referrerPolicy="no-referrer"
-            />
+          <div className="w-20 h-20 bg-gradient-to-br from-violet-600 to-indigo-600 rounded-3xl shadow-xl shadow-violet-200 flex items-center justify-center mb-6 transform -rotate-6">
+            <GraduationCap className="text-white w-10 h-10" />
           </div>
           <h1 className="text-2xl font-bold text-slate-800">إنشاء حساب جديد</h1>
           <p className="text-slate-500 text-sm mt-2">انضم إلينا وابدأ رحلة التعلم</p>

@@ -1,6 +1,6 @@
 import React from 'react';
 import { 
-  BookOpen, Compass, BarChart3, AppWindow, Settings, Home as HomeIcon
+  BookOpen, Compass, BarChart3, AppWindow, Settings, Home as HomeIcon, GraduationCap
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -20,8 +20,8 @@ const Sidebar = () => {
     <>
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex w-24 bg-white border-l border-slate-100 flex-col items-center pt-8 pb-8 -mt-[26px] gap-8 fixed right-0 h-full z-40 transition-colors duration-300">
-        <div className="bg-violet-600 p-3 rounded-2xl shadow-lg shadow-violet-200 mb-4">
-          <BookOpen className="text-white w-6 h-6" />
+        <div className="w-14 h-14 bg-gradient-to-br from-violet-600 to-indigo-600 rounded-2xl shadow-lg shadow-violet-200 flex items-center justify-center mb-4 transform -rotate-6">
+          <GraduationCap className="text-white w-7 h-7" />
         </div>
         <div className="flex flex-col gap-6">
           {menuItems.map((item) => {
