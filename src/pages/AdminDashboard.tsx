@@ -7,7 +7,7 @@ import {
   CheckCircle2, ArrowUp, ArrowDown, ChevronDown, Circle, Compass, Tag
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import type { Path, Lesson, Unit, LessonPage } from '../types';
+import type { Path, Lesson, LessonPage } from '../types';
 import LessonEditor from '../components/LessonEditor';
 import { useAuth } from '../context/AuthContext';
 import { compressImage } from '../utils/image';
@@ -33,14 +33,12 @@ import { db, handleFirestoreError, OperationType } from '../firebase';
 const AdminDashboard = () => {
   const [paths, setPaths] = useState<Path[]>([]);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
-  const [units, setUnits] = useState<Unit[]>([]);
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [selectedLesson, setSelectedLesson] = useState<string | null>(null);
   const [editingLesson, setEditingLesson] = useState<Lesson | null>(null);
   const [editingPath, setEditingPath] = useState<Path | null>(null);
-  const [editingUnit, setEditingUnit] = useState<Unit | null>(null);
   const [pages, setPages] = useState<LessonPage[]>([]);
-  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string, type: 'path' | 'unit' | 'lesson' | 'user', title: string } | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string, type: 'path' | 'lesson' | 'user', title: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'content' | 'users' | 'database' | 'notifications'>('content');
   const { user: currentUser } = useAuth();
@@ -78,8 +76,7 @@ const AdminDashboard = () => {
   const [showExistingLessons, setShowExistingLessons] = useState(false);
 
   const [newPath, setNewPath] = useState({ title: '', description: '', icon: 'Book', category: 'الرياضيات', image_url: '' });
-  const [newUnit, setNewUnit] = useState({ title: '', description: '' });
-  const [newLesson, setNewLesson] = useState({ title: '', image_url: '', source: 'منصة الرياضيات', duration: '10 دقائق', unit_id: '' });
+  const [newLesson, setNewLesson] = useState({ title: '', image_url: '', source: 'منصة الرياضيات', duration: '10 دقائق' });
 
   // Notification State
   const [newNotification, setNewNotification] = useState({
@@ -149,21 +146,6 @@ const AdminDashboard = () => {
       if (unsubscribeUsers) unsubscribeUsers();
     };
   }, [currentUser]);
-
-  useEffect(() => {
-    if (selectedPath) {
-      const q = query(collection(db, 'paths', selectedPath, 'units'), orderBy('order_index', 'asc'));
-      const unsubscribe = onSnapshot(q, (snapshot) => {
-        const unitsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Unit));
-        setUnits(unitsData);
-      }, (err) => {
-        handleFirestoreError(err, OperationType.LIST, `paths/${selectedPath}/units`);
-      });
-      return () => unsubscribe();
-    } else {
-      setUnits([]);
-    }
-  }, [selectedPath]);
 
   useEffect(() => {
     if (selectedPath) {
@@ -408,69 +390,12 @@ const AdminDashboard = () => {
     setDeleteConfirm({ id, type: 'path', title: pathToDelete.title });
   };
 
-  const handleDeleteLesson = () => {
-    if (!selectedLesson) return;
-    const lessonToDelete = lessons.find(l => l.id === selectedLesson);
+  const handleDeleteLesson = (id?: string) => {
+    const lessonId = id || selectedLesson;
+    if (!lessonId) return;
+    const lessonToDelete = lessons.find(l => l.id === lessonId);
     if (!lessonToDelete) return;
-    setDeleteConfirm({ id: selectedLesson, type: 'lesson', title: lessonToDelete.title });
-  };
-
-  const handleAddUnit = async () => {
-    if (!selectedPath || !newUnit.title) return;
-    setError(null);
-    try {
-      await addDoc(collection(db, 'paths', selectedPath, 'units'), { 
-        ...newUnit, 
-        path_id: selectedPath, 
-        order_index: units.length 
-      });
-      setNewUnit({ title: '', description: '' });
-    } catch (err) {
-      handleFirestoreError(err, OperationType.WRITE, `paths/${selectedPath}/units`);
-      setError("فشل إضافة الوحدة");
-    }
-  };
-
-  const handleUpdateUnit = async () => {
-    if (!selectedPath || !editingUnit) return;
-    setError(null);
-    try {
-      const { id, ...data } = editingUnit;
-      await updateDoc(doc(db, 'paths', selectedPath, 'units', id), data);
-      setEditingUnit(null);
-    } catch (err) {
-      handleFirestoreError(err, OperationType.WRITE, `paths/${selectedPath}/units/${editingUnit.id}`);
-      setError("فشل تحديث الوحدة");
-    }
-  };
-
-  const handleDeleteUnit = (id: string) => {
-    const unitToDelete = units.find(u => u.id === id);
-    if (!unitToDelete) return;
-    setDeleteConfirm({ id, type: 'unit', title: unitToDelete.title });
-  };
-
-  const handleReorderUnits = async (direction: 'up' | 'down', index: number) => {
-    if (!selectedPath) return;
-    const newUnits = [...units];
-    if (direction === 'up' && index > 0) {
-      [newUnits[index], newUnits[index - 1]] = [newUnits[index - 1], newUnits[index]];
-    } else if (direction === 'down' && index < newUnits.length - 1) {
-      [newUnits[index], newUnits[index + 1]] = [newUnits[index + 1], newUnits[index]];
-    } else {
-      return;
-    }
-
-    const batch = writeBatch(db);
-    newUnits.forEach((u, i) => {
-      batch.update(doc(db, 'paths', selectedPath, 'units', u.id), { order_index: i });
-    });
-    try {
-      await batch.commit();
-      setUnits(newUnits);
-    } catch (err) {
-      console.error("Reorder units failed:", err);
-    }
+    setDeleteConfirm({ id: lessonId, type: 'lesson', title: lessonToDelete.title });
   };
 
   const handleConfirmDelete = async () => {
@@ -484,17 +409,7 @@ const AdminDashboard = () => {
         if (selectedPath === id) {
           setSelectedPath(null);
           setLessons([]);
-          setUnits([]);
         }
-      } else if (type === 'unit') {
-        if (!selectedPath) return;
-        await deleteDoc(doc(db, 'paths', selectedPath, 'units', id));
-        // Also update lessons that were in this unit
-        const batch = writeBatch(db);
-        lessons.filter(l => l.unit_id === id).forEach(l => {
-          batch.update(doc(db, 'paths', selectedPath, 'lessons', l.id), { unit_id: '' });
-        });
-        await batch.commit();
       } else if (type === 'lesson') {
         if (!selectedPath) return;
         await deleteDoc(doc(db, 'paths', selectedPath, 'lessons', id));
@@ -519,7 +434,7 @@ const AdminDashboard = () => {
         path_id: selectedPath, 
         order_index: lessons.length 
       });
-      setNewLesson({ title: '', image_url: '', source: 'منصة الرياضيات', duration: '10 دقائق', unit_id: '' });
+      setNewLesson({ title: '', image_url: '', source: 'منصة الرياضيات', duration: '10 دقائق' });
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, `paths/${selectedPath}/lessons`);
       setError("فشل إضافة الدرس");
@@ -785,86 +700,6 @@ const AdminDashboard = () => {
             </div>
           </div>
 
-          {/* Units Section */}
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 flex flex-col">
-            <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
-              <Compass className="w-5 h-5 text-amber-500" />
-              الوحدات
-            </h2>
-            {selectedPath ? (
-              <>
-                <div className="space-y-3 mb-6 flex-1 overflow-y-auto max-h-[500px]">
-                  <button
-                    onClick={() => {
-                      const element = document.getElementById('unit-group-none');
-                      if (element) element.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    }}
-                    className={`w-full text-right p-3 rounded-lg border transition-colors text-sm bg-slate-50 border-slate-200 hover:border-violet-300 hover:bg-slate-100`}
-                  >
-                    دروس بدون وحدة
-                  </button>
-                  <div className="h-px bg-slate-100 my-2" />
-                  {units.map((u, index) => (
-                    <div key={u.id} className="flex items-center gap-2">
-                      <div className="flex flex-col gap-1 bg-slate-50 p-1 rounded-lg border border-slate-100">
-                        <button 
-                          onClick={() => handleReorderUnits('up', index)}
-                          disabled={index === 0}
-                          className="p-1.5 hover:bg-white hover:shadow-sm rounded-md disabled:opacity-20 transition-all text-slate-600"
-                          title="تحريك للأعلى"
-                        >
-                          <ArrowUp className="w-3 h-3" />
-                        </button>
-                        <button 
-                          onClick={() => handleReorderUnits('down', index)}
-                          disabled={index === units.length - 1}
-                          className="p-1.5 hover:bg-white hover:shadow-sm rounded-md disabled:opacity-20 transition-all text-slate-600"
-                          title="تحريك للأسفل"
-                        >
-                          <ArrowDown className="w-3 h-3" />
-                        </button>
-                      </div>
-                      <button
-                        onClick={() => {
-                          const element = document.getElementById(`unit-group-${u.id}`);
-                          if (element) element.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                        }}
-                        className="flex-1 text-right p-3 rounded-lg border bg-amber-50 border-amber-200 text-amber-800 text-sm font-bold hover:bg-amber-100 transition-colors"
-                      >
-                        {u.title}
-                      </button>
-                      <div className="flex flex-col gap-1">
-                        <button 
-                          onClick={() => setEditingUnit(u)} 
-                          className="p-2 text-slate-400 hover:text-violet-600 hover:bg-violet-50 rounded-lg transition-all"
-                          title="تعديل الوحدة"
-                        >
-                          <Edit3 className="w-4 h-4" />
-                        </button>
-                        <button 
-                          onClick={() => handleDeleteUnit(u.id)} 
-                          className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                          title="حذف الوحدة"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                  {units.length === 0 && <p className="text-center text-slate-400 py-8 text-xs">لا توجد وحدات</p>}
-                </div>
-                <div className="space-y-3 pt-6 border-t border-slate-100">
-                  <input 
-                    type="text" placeholder="عنوان الوحدة" 
-                    className="w-full p-2 border rounded-lg text-xs"
-                    value={newUnit.title} onChange={e => setNewUnit({...newUnit, title: e.target.value})}
-                  />
-                  <button onClick={handleAddUnit} className="w-full bg-amber-500 text-white py-2 rounded-lg font-bold hover:bg-amber-600 transition-colors text-xs">إضافة وحدة</button>
-                </div>
-              </>
-            ) : <p className="text-slate-400 text-center py-12 text-sm">اختر مساراً أولاً</p>}
-          </div>
-
           {/* Lessons Section */}
           <div className="bg-white p-6 rounded-2xl border border-slate-200 flex flex-col">
             <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
@@ -874,44 +709,41 @@ const AdminDashboard = () => {
             {selectedPath ? (
               <>
                 <div className="space-y-3 mb-6 flex-1 overflow-y-auto max-h-[500px]">
-                  {/* Group lessons by unit */}
-                  {units.map(unit => (
-                    <div key={unit.id} id={`unit-group-${unit.id}`} className="space-y-2 scroll-mt-4">
-                      <div className="flex items-center gap-2 py-1 px-2 bg-slate-50 rounded-lg border border-slate-100">
-                        <Tag className="w-3 h-3 text-amber-500" />
-                        <span className="text-[10px] font-bold text-slate-500">{unit.title}</span>
-                      </div>
-                      {lessons.filter(l => l.unit_id === unit.id).map((l, index) => (
-                        <div key={l.id} className="flex items-center gap-2 pr-4">
-                          <button
-                            onClick={() => setSelectedLesson(l.id)}
-                            className={`flex-1 text-right p-2 rounded-lg border transition-colors text-xs ${selectedLesson === l.id ? 'bg-blue-50 border-blue-500 text-blue-700 font-bold' : 'bg-white border-slate-100'}`}
-                          >
-                            {l.title}
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  ))}
-                  
-                  {/* Lessons without units */}
-                  <div id="unit-group-none" className="space-y-2 scroll-mt-4">
-                    <div className="flex items-center gap-2 py-1 px-2 bg-slate-50 rounded-lg border border-slate-100">
-                      <Circle className="w-3 h-3 text-slate-300" />
-                      <span className="text-[10px] font-bold text-slate-500">دروس بدون وحدة</span>
-                    </div>
-                    {lessons.filter(l => !l.unit_id).map((l, index) => (
-                      <div key={l.id} className="flex items-center gap-2 pr-4">
-                        <button
-                          onClick={() => setSelectedLesson(l.id)}
-                          className={`flex-1 text-right p-2 rounded-lg border transition-colors text-xs ${selectedLesson === l.id ? 'bg-blue-50 border-blue-500 text-blue-700 font-bold' : 'bg-white border-slate-100'}`}
+                  {lessons.map((l, index) => (
+                    <div key={l.id} className="flex items-center gap-2">
+                      <div className="flex flex-col gap-1 bg-slate-50 p-1 rounded-lg border border-slate-100">
+                        <button 
+                          onClick={() => handleReorderLessons('up', index)}
+                          disabled={index === 0}
+                          className="p-1.5 hover:bg-white hover:shadow-sm rounded-md disabled:opacity-20 transition-all text-slate-600"
+                          title="تحريك للأعلى"
                         >
-                          {l.title}
+                          <ArrowUp className="w-3 h-3" />
+                        </button>
+                        <button 
+                          onClick={() => handleReorderLessons('down', index)}
+                          disabled={index === lessons.length - 1}
+                          className="p-1.5 hover:bg-white hover:shadow-sm rounded-md disabled:opacity-20 transition-all text-slate-600"
+                          title="تحريك للأسفل"
+                        >
+                          <ArrowDown className="w-3 h-3" />
                         </button>
                       </div>
-                    ))}
-                  </div>
-
+                      <button
+                        onClick={() => setSelectedLesson(l.id)}
+                        className={`flex-1 text-right p-2 rounded-lg border transition-colors text-xs ${selectedLesson === l.id ? 'bg-blue-50 border-blue-500 text-blue-700 font-bold' : 'bg-white border-slate-100'}`}
+                      >
+                        {l.title}
+                      </button>
+                      <button 
+                        onClick={() => handleDeleteLesson(l.id)} 
+                        className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                        title="حذف الدرس"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
                   {lessons.length === 0 && <p className="text-center text-slate-400 py-8 text-xs">لا توجد دروس</p>}
                 </div>
                 <div className="space-y-3 pt-6 border-t border-slate-100">
@@ -920,15 +752,6 @@ const AdminDashboard = () => {
                     className="w-full p-2 border rounded-lg text-xs"
                     value={newLesson.title} onChange={e => setNewLesson({...newLesson, title: e.target.value})}
                   />
-                  <select 
-                    className="w-full p-2 border rounded-lg text-xs bg-white"
-                    value={newLesson.unit_id} onChange={e => setNewLesson({...newLesson, unit_id: e.target.value})}
-                  >
-                    <option value="">بدون وحدة</option>
-                    {units.map(u => (
-                      <option key={u.id} value={u.id}>{u.title}</option>
-                    ))}
-                  </select>
                   <button onClick={handleAddLesson} className="w-full bg-blue-500 text-white py-2 rounded-lg font-bold hover:bg-blue-600 mb-2 transition-colors text-xs">إضافة درس</button>
                   <button 
                     onClick={() => setShowExistingLessons(true)} 
@@ -963,7 +786,7 @@ const AdminDashboard = () => {
                 </button>
                 <div className="grid grid-cols-2 gap-2">
                   <button 
-                    onClick={handleDeleteLesson}
+                    onClick={() => handleDeleteLesson()}
                     className="bg-red-50 text-red-600 py-2 rounded-lg font-bold hover:bg-red-100 flex items-center justify-center gap-2 text-xs"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
@@ -1379,55 +1202,6 @@ const AdminDashboard = () => {
           </div>
         </div>
       )}
-
-      {/* Edit Unit Modal */}
-      <AnimatePresence>
-        {editingUnit && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
-              onClick={() => setEditingUnit(null)}
-            />
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white w-full max-w-md rounded-3xl overflow-hidden shadow-2xl relative z-10 p-8"
-            >
-              <h2 className="text-2xl font-bold text-slate-800 mb-6">تعديل الوحدة</h2>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1">عنوان الوحدة</label>
-                  <input 
-                    type="text" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-violet-500"
-                    value={editingUnit.title} onChange={e => setEditingUnit({...editingUnit, title: e.target.value})}
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1">وصف الوحدة</label>
-                  <textarea 
-                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-violet-500 min-h-[100px]"
-                    value={editingUnit.description} onChange={e => setEditingUnit({...editingUnit, description: e.target.value})}
-                  />
-                </div>
-                <div className="flex gap-3 pt-4">
-                  <button 
-                    onClick={handleUpdateUnit}
-                    className="flex-1 bg-amber-500 text-white py-3 rounded-xl font-bold hover:bg-amber-600 transition-colors"
-                  >
-                    حفظ التغييرات
-                  </button>
-                  <button 
-                    onClick={() => setEditingUnit(null)}
-                    className="flex-1 bg-slate-100 text-slate-600 py-3 rounded-xl font-bold hover:bg-slate-200 transition-colors"
-                  >
-                    إلغاء
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
 
       {/* Delete Confirmation Modal */}
       <AnimatePresence>

@@ -104,6 +104,13 @@ service cloud.firestore {
              data.title is string && data.title.size() > 0 && data.title.size() < 200;
     }
 
+    function isValidUnit(data) {
+      return data.keys().hasAll(['title', 'order_index']) &&
+             hasOnlyAllowedFields(['title', 'description', 'order_index', 'path_id']) &&
+             data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
+             data.order_index is number;
+    }
+
     function isValidLesson(data) {
       return data.keys().hasAll(['title']) &&
              hasOnlyAllowedFields(['title', 'image_url', 'source', 'duration', 'order_index', 'path_id', 'path_title', 'category', 'page_count']) &&
@@ -183,6 +190,12 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow create, update: if isAdmin() && isValidPath(request.resource.data);
       allow delete: if isAdmin();
+
+      match /units/{unitId} {
+        allow read: if isAuthenticated();
+        allow create, update: if isAdmin() && isValidUnit(request.resource.data);
+        allow delete: if isAdmin();
+      }
 
       match /lessons/{lessonId} {
         allow read: if isAuthenticated();

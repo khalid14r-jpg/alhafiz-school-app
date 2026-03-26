@@ -62,24 +62,25 @@ const LessonEditor = ({ lessonId, pathId, onClose }: LessonEditorProps) => {
   const quillRef = useRef<any>(null);
 
   useEffect(() => {
-    const lessonRef = doc(db, 'paths', pathId, 'lessons', lessonId);
-    const unsubscribeLesson = onSnapshot(lessonRef, (docSnap) => {
-      if (docSnap.exists()) {
-        setLessonMetadata({ id: docSnap.id, ...docSnap.data() } as Lesson);
+    const loadData = async () => {
+      try {
+        const lessonRef = doc(db, 'paths', pathId, 'lessons', lessonId);
+        const lessonSnap = await getDoc(lessonRef);
+        if (lessonSnap.exists()) {
+          setLessonMetadata({ id: lessonSnap.id, ...lessonSnap.data() } as Lesson);
+        }
+
+        const pagesRef = collection(db, 'paths', pathId, 'lessons', lessonId, 'pages');
+        const q = query(pagesRef, orderBy('order_index', 'asc'));
+        const pagesSnap = await getDocs(q);
+        const pagesData = pagesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as LessonPage));
+        setPages(pagesData);
+      } catch (err: any) {
+        handleFirestoreError(err, OperationType.GET, `paths/${pathId}/lessons/${lessonId}`);
       }
-    });
-
-    const pagesRef = collection(db, 'paths', pathId, 'lessons', lessonId, 'pages');
-    const q = query(pagesRef, orderBy('order_index', 'asc'));
-    const unsubscribePages = onSnapshot(q, (snapshot) => {
-      const pagesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LessonPage));
-      setPages(pagesData);
-    });
-
-    return () => {
-      unsubscribeLesson();
-      unsubscribePages();
     };
+
+    loadData();
   }, [lessonId, pathId]);
 
   const currentPage = pages[selectedPageIndex];
@@ -158,7 +159,11 @@ const LessonEditor = ({ lessonId, pathId, onClose }: LessonEditorProps) => {
     try {
       // Save lesson metadata
       const { id, ...lessonData } = lessonMetadata;
-      await updateDoc(doc(db, 'paths', pathId, 'lessons', lessonId), lessonData);
+      const updatedLessonData = {
+        ...lessonData,
+        page_count: pages.length
+      };
+      await updateDoc(doc(db, 'paths', pathId, 'lessons', lessonId), updatedLessonData);
 
       // Save pages using a batch
       const batch = writeBatch(db);

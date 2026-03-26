@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { 
   BookOpen, ChevronRight, ChevronLeft, 
   CheckCircle2, Circle, Trophy, Sparkles, 
-  ArrowRight, PlayCircle, FileText, HelpCircle, Compass
+  ArrowRight, PlayCircle, FileText, HelpCircle
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import type { Path, Lesson, Unit } from '../types';
+import type { Path, Lesson } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { doc, getDoc, collection, getDocs, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
@@ -16,7 +16,6 @@ const PathDetails = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [path, setPath] = useState<Path | null>(null);
-  const [units, setUnits] = useState<Unit[]>([]);
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [completedLessons, setCompletedLessons] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
@@ -31,38 +30,50 @@ const PathDetails = () => {
         if (pathSnap.exists()) {
           setPath({ id: pathSnap.id, ...pathSnap.data() } as Path);
           
-          // Fetch units
-          const unitsRef = collection(db, 'paths', id, 'units');
-          const unitsQuery = query(unitsRef, orderBy('order_index', 'asc'));
-          const unitsSnap = await getDocs(unitsQuery);
-          const unitsData = unitsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Unit));
-          setUnits(unitsData);
-
-          const lessonsRef = collection(db, 'paths', id, 'lessons');
-          const lessonsQuery = query(lessonsRef, orderBy('order_index', 'asc'));
-          const lessonsSnap = await getDocs(lessonsQuery);
-          
-          // Fetch page counts for each lesson in parallel
-          const lessonsData = await Promise.all(lessonsSnap.docs.map(async (docSnap) => {
-            const pagesSnap = await getDocs(collection(db, 'paths', id, 'lessons', docSnap.id, 'pages'));
-            return { 
-              id: docSnap.id, 
-              page_count: pagesSnap.size,
-              ...docSnap.data() 
-            } as Lesson;
-          }));
-          
-          setLessons(lessonsData);
+          // Fetch lessons
+          try {
+            const lessonsRef = collection(db, 'paths', id, 'lessons');
+            const lessonsQuery = query(lessonsRef, orderBy('order_index', 'asc'));
+            const lessonsSnap = await getDocs(lessonsQuery);
+            
+            // Fetch page counts for each lesson in parallel
+            const lessonsData = await Promise.all(lessonsSnap.docs.map(async (docSnap) => {
+              try {
+                const pagesSnap = await getDocs(collection(db, 'paths', id, 'lessons', docSnap.id, 'pages'));
+                return { 
+                  id: docSnap.id, 
+                  page_count: pagesSnap.size,
+                  ...docSnap.data() 
+                } as Lesson;
+              } catch (pageErr) {
+                console.error(`Error fetching pages for lesson ${docSnap.id}:`, pageErr);
+                return {
+                  id: docSnap.id,
+                  page_count: 0,
+                  ...docSnap.data()
+                } as Lesson;
+              }
+            }));
+            
+            setLessons(lessonsData);
+          } catch (lessonErr) {
+            console.error("Error fetching lessons:", lessonErr);
+            handleFirestoreError(lessonErr, OperationType.LIST, `paths/${id}/lessons`);
+          }
         }
 
         if (user) {
-          const progressRef = collection(db, 'users', user.id, 'progress');
-          const progressSnap = await getDocs(progressRef);
-          const completed = new Set<string>();
-          progressSnap.forEach((doc) => {
-            if (doc.data().completed) completed.add(doc.id);
-          });
-          setCompletedLessons(completed);
+          try {
+            const progressRef = collection(db, 'users', user.id, 'progress');
+            const progressSnap = await getDocs(progressRef);
+            const completed = new Set<string>();
+            progressSnap.forEach((doc) => {
+              if (doc.data().completed) completed.add(doc.id);
+            });
+            setCompletedLessons(completed);
+          } catch (progressErr) {
+            console.error("Error fetching progress:", progressErr);
+          }
         }
       } catch (err) {
         handleFirestoreError(err, OperationType.GET, `paths/${id}`);
@@ -114,130 +125,54 @@ const PathDetails = () => {
       <div className="space-y-12">
         <h2 className="text-2xl font-bold text-slate-800 px-4">محتوى المسار</h2>
         
-        {/* Group lessons by unit */}
-        {units.map((unit, unitIdx) => (
-          <div key={unit.id} className="space-y-6">
-            <div className="flex items-center gap-3 px-4">
-              <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center text-amber-600">
-                <Compass className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-xl font-bold text-slate-800">{unit.title}</h3>
-                {unit.description && <p className="text-xs text-slate-400">{unit.description}</p>}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-4">
-              {lessons.filter(l => l.unit_id === unit.id).map((lesson, idx) => {
-                const isCompleted = completedLessons.has(lesson.id);
-                return (
-                  <motion.div 
-                    key={lesson.id}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: (unitIdx * 0.1) + (idx * 0.05) }}
-                    className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm hover:shadow-xl hover:border-violet-100 transition-all group"
-                  >
-                    <div className="flex items-center gap-6">
-                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-bold text-lg shrink-0 transition-colors ${
-                        isCompleted ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400 group-hover:bg-violet-100 group-hover:text-violet-600'
-                      }`}>
-                        {isCompleted ? <CheckCircle2 className="w-6 h-6" /> : idx + 1}
-                      </div>
-                      
-                      <div className="flex-1">
-                        <h3 className="text-lg font-bold text-slate-800 mb-1 group-hover:text-violet-600 transition-colors">{lesson.title}</h3>
-                        <div className="flex items-center gap-4 text-xs text-slate-400 font-medium">
-                          <span className="flex items-center gap-1">
-                            <FileText className="w-3 h-3" />
-                            {lesson.page_count || 0} صفحات
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <PlayCircle className="w-3 h-3" />
-                            {lesson.source}
-                          </span>
-                        </div>
-                      </div>
-
-                      <Link 
-                        to={`/path/${path.id}/lesson/${lesson.id}`}
-                        className={`px-8 py-3 rounded-2xl font-bold transition-all flex items-center gap-2 ${
-                          isCompleted 
-                            ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100' 
-                            : 'bg-violet-600 text-white hover:bg-violet-700 shadow-lg shadow-violet-100'
-                        }`}
-                      >
-                        {isCompleted ? 'مراجعة الدرس' : 'ابدأ التعلم'}
-                        <ArrowRight className="w-4 h-4" />
-                      </Link>
+        <div className="grid grid-cols-1 gap-4">
+          {lessons.map((lesson, idx) => {
+            const isCompleted = completedLessons.has(lesson.id);
+            return (
+              <motion.div 
+                key={lesson.id}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: idx * 0.05 }}
+                className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm hover:shadow-xl hover:border-violet-100 transition-all group"
+              >
+                <div className="flex items-center gap-6">
+                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-bold text-lg shrink-0 transition-colors ${
+                    isCompleted ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400 group-hover:bg-violet-100 group-hover:text-violet-600'
+                  }`}>
+                    {isCompleted ? <CheckCircle2 className="w-6 h-6" /> : idx + 1}
+                  </div>
+                  
+                  <div className="flex-1">
+                    <h3 className="text-lg font-bold text-slate-800 mb-1 group-hover:text-violet-600 transition-colors">{lesson.title}</h3>
+                    <div className="flex items-center gap-4 text-xs text-slate-400 font-medium">
+                      <span className="flex items-center gap-1">
+                        <FileText className="w-3 h-3" />
+                        {lesson.page_count || 0} صفحات
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <PlayCircle className="w-3 h-3" />
+                        {lesson.source}
+                      </span>
                     </div>
-                  </motion.div>
-                );
-              })}
-            </div>
-          </div>
-        ))}
+                  </div>
 
-        {/* Lessons without units */}
-        {lessons.filter(l => !l.unit_id).length > 0 && (
-          <div className="space-y-6">
-            <div className="flex items-center gap-3 px-4">
-              <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-slate-400">
-                <Circle className="w-5 h-5" />
-              </div>
-              <h3 className="text-xl font-bold text-slate-800">دروس إضافية</h3>
-            </div>
-
-            <div className="grid grid-cols-1 gap-4">
-              {lessons.filter(l => !l.unit_id).map((lesson, idx) => {
-                const isCompleted = completedLessons.has(lesson.id);
-                return (
-                  <motion.div 
-                    key={lesson.id}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: idx * 0.1 }}
-                    className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm hover:shadow-xl hover:border-violet-100 transition-all group"
+                  <Link 
+                    to={`/path/${path.id}/lesson/${lesson.id}`}
+                    className={`px-8 py-3 rounded-2xl font-bold transition-all flex items-center gap-2 ${
+                      isCompleted 
+                        ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100' 
+                        : 'bg-violet-600 text-white hover:bg-violet-700 shadow-lg shadow-violet-100'
+                    }`}
                   >
-                    <div className="flex items-center gap-6">
-                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-bold text-lg shrink-0 transition-colors ${
-                        isCompleted ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400 group-hover:bg-violet-100 group-hover:text-violet-600'
-                      }`}>
-                        {isCompleted ? <CheckCircle2 className="w-6 h-6" /> : idx + 1}
-                      </div>
-                      
-                      <div className="flex-1">
-                        <h3 className="text-lg font-bold text-slate-800 mb-1 group-hover:text-violet-600 transition-colors">{lesson.title}</h3>
-                        <div className="flex items-center gap-4 text-xs text-slate-400 font-medium">
-                          <span className="flex items-center gap-1">
-                            <FileText className="w-3 h-3" />
-                            {lesson.page_count || 0} صفحات
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <PlayCircle className="w-3 h-3" />
-                            {lesson.source}
-                          </span>
-                        </div>
-                      </div>
-
-                      <Link 
-                        to={`/path/${path.id}/lesson/${lesson.id}`}
-                        className={`px-8 py-3 rounded-2xl font-bold transition-all flex items-center gap-2 ${
-                          isCompleted 
-                            ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100' 
-                            : 'bg-violet-600 text-white hover:bg-violet-700 shadow-lg shadow-violet-100'
-                        }`}
-                      >
-                        {isCompleted ? 'مراجعة الدرس' : 'ابدأ التعلم'}
-                        <ArrowRight className="w-4 h-4" />
-                      </Link>
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </div>
-          </div>
-        )}
+                    {isCompleted ? 'مراجعة الدرس' : 'ابدأ التعلم'}
+                    <ArrowRight className="w-4 h-4" />
+                  </Link>
+                </div>
+              </motion.div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

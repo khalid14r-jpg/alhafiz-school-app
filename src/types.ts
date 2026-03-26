@@ -10,18 +10,9 @@ export interface Path {
   order_index?: number;
 }
 
-export interface Unit {
-  id: string;
-  path_id: string;
-  title: string;
-  description?: string;
-  order_index: number;
-}
-
 export interface Lesson {
   id: string;
   path_id: string;
-  unit_id?: string;
   title: string;
   path_title?: string;
   category?: string;
